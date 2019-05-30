@@ -2,12 +2,13 @@ import Geocoder from 'react-native-geocoding';
 import React from 'react';
 import {
   StyleSheet, Text, View, ScrollView, Picker, DatePickerIOS, TouchableOpacity, Image,
-  Dimensions, LayoutAnimation, UIManager, Platform, AsyncStorage
+  Dimensions, LayoutAnimation, UIManager, Platform, AsyncStorage, TextInput, KeyboardAvoidingView
 } from 'react-native';
-import { Header, ListItem, Icon, Button } from 'react-native-elements';
+import { ListItem, Button, Icon } from 'react-native-elements';
 import DatePicker from 'react-native-datepicker';
 import { MapView, Permissions, ImagePicker, Location, Constants } from 'expo';
 import { connect } from 'react-redux';
+import { Container, Header, Content, Item, Input } from 'native-base';
 
 import * as actions from '../actions';
 
@@ -24,6 +25,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const MAP_ZOOM_RATE = 15.0;
 
 const INITIAL_STATE = {
+
   countryPickerVisible: false,
   dateFromPickerVisible: false,
   dateToPickerVisible: false,
@@ -41,6 +43,7 @@ const INITIAL_STATE = {
       require('../assets/add_image_placeholder.png'),
     ],
     rank: '',
+    currentLocation: 'Location'
   },
 
   initialRegion: {
@@ -58,10 +61,6 @@ class AddScreen extends React.Component {
   constructor(props) {
     super(props);
     this.state = INITIAL_STATE;
-    // this.state={
-    //   latitude: null,
-    //   longitude: null
-    // }
   }
 
 
@@ -88,8 +87,11 @@ class AddScreen extends React.Component {
     const location = await Location.getCurrentPositionAsync({});
     this.setState({
       latitude: location.coords.latitude,
-      longitude: location.coords.longitude
+      longitude: location.coords.longitude,
+      // tripDetail:{currentLocation: location}
     })
+
+    this.state.tripDetail.location=location;
 
     this.setState({ locationResult: JSON.stringify(location) });
   
@@ -334,7 +336,9 @@ class AddScreen extends React.Component {
   }
 
 
-  renderReviewButtons() {
+  renderReviewButtons() { // ←追記部分
+    // 国が選択されたとき(国名が`INITIAL_STATE`じゃないとき)かつ
+    // 国選択プルダウンメニューが閉じられたら、
     if (
       this.state.tripDetail.country !== INITIAL_STATE.tripDetail.country &&
       this.state.countryPickerVisible === false
@@ -342,16 +346,18 @@ class AddScreen extends React.Component {
       return (
         <View
           style={{
-            flexDirection: 'row',
-            justifyContent: 'center',
-            paddingTop: 10
+            flexDirection: 'row', // 横に並べる
+            justifyContent: 'center', // 中央揃え
+            paddingTop: 10 // 上側に少し余白を持たせる
           }}
         >
           <Icon
             raised
             size={40}
             name={GREAT}
+            // `this.state.tripDetail.rank`がGREATなら赤色、それ以外なら灰色
             color={this.state.tripDetail.rank === GREAT ? GREAT_COLOR : 'gray'}
+            // 押されたら`this.state.tripDetail.rank`をGREATにセット
             onPress={() => this.setState({
               ...this.state,
               tripDetail: {
@@ -364,7 +370,9 @@ class AddScreen extends React.Component {
             raised
             size={40}
             name={GOOD}
+            // `this.state.tripDetail.rank`がGOODならオレンジ色、それ以外なら灰色
             color={this.state.tripDetail.rank === GOOD ? GOOD_COLOR : 'gray'}
+            // 押されたら`this.state.tripDetail.rank`をGOODにセット
             onPress={() => this.setState({
               ...this.state,
               tripDetail: {
@@ -377,7 +385,9 @@ class AddScreen extends React.Component {
             raised
             size={40}
             name={POOR}
+            // `this.state.tripDetail.rank`がPOORなら青色、それ以外なら灰色
             color={this.state.tripDetail.rank === POOR ? POOR_COLOR : 'gray'}
+            // 押されたら`this.state.tripDetail.rank`をPOORにセット
             onPress={() => this.setState({
               ...this.state,
               tripDetail: {
@@ -392,7 +402,9 @@ class AddScreen extends React.Component {
   }
 
 
+  // 旅行情報をスマホ内に保存する
   onAddButtonPress = async () => {
+    // 添付されてる写真のURIだけ追加して、未添付を表す`require('../assets/add_image_placeholder.png')`は追加しない
     const newImageURIs = [];
     for (let i = 0; i < this.state.tripDetail.imageURIs.length; i++) {
       if (this.state.tripDetail.imageURIs[i] !== require('../assets/add_image_placeholder.png')) {
@@ -400,9 +412,11 @@ class AddScreen extends React.Component {
       }
     }
 
+    // 添付されてる写真のURIだけをもつ`tripDetail`を作る
     const tripDetail = this.state.tripDetail;
     tripDetail.imageURIs = newImageURIs;
 
+    // スマホ内に保存済みの旅行情報を読み取る
     let stringifiedAllReviews = await AsyncStorage.getItem('allReviews');
     let allReviews = JSON.parse(stringifiedAllReviews);
 
@@ -418,8 +432,10 @@ class AddScreen extends React.Component {
       console.warn(e);
     }
 
+    // ここでAction creatorを呼んでHomeScreenを再描画させる
     this.props.fetchAllReviews();
 
+    // `this.state`をリセットする
     this.setState({
       ...INITIAL_STATE,
       tripDetail: {
@@ -431,7 +447,8 @@ class AddScreen extends React.Component {
         ]
       }
     });
-
+    
+    // HomeScreenに遷移する
     this.props.navigation.navigate('home');
   }
 
@@ -439,7 +456,10 @@ class AddScreen extends React.Component {
   renderAddButton() {
     let isComplete = true;
 
+    // `this.state.tripDetail`のキーの数だけ繰り返す
     Object.keys(this.state.tripDetail).forEach((key) => {
+      // 'imageURIs'以外の`key`で
+      // `this.state.tripDetail`の各値が`INITIAL_STATE.tripDetail`と(一つでも)同じだったら、
       if (
         key !== 'imageURIs' &&
         this.state.tripDetail[key] === INITIAL_STATE.tripDetail[key]
@@ -489,6 +509,39 @@ class AddScreen extends React.Component {
           }}
           centerComponent={{ text: 'Add', style: styles.headerStyle }}
         />
+        <Container>
+        <Content>
+          {/* // Text input box with icon aligned to the left */}
+          <Item>
+            <Icon active name='home' />
+            <Input placeholder='店名'/>
+          </Item>
+          {/* // Text input box with icon aligned to the right */}
+          <Item>
+            <Input placeholder='どこに行った？'/>
+            <Icon active name='swap' />
+          </Item>
+          <MapView
+          style={{ height: SCREEN_WIDTH }}
+          scrollEnabled={false}
+          cacheEnabled={Platform.OS === 'android'}
+          region={{
+            latitude: this.state.latitude,
+            longitude: this.state.longitude,
+            latitudeDelta: 0.00922,
+            longitudeDelta: 0.00521
+          }}
+      >
+        <MapView.Marker
+          coordinate={{
+            latitude: this.state.latitude,
+            longitude: this.state.longitude
+          }}
+          title="ここに行ったよ！"
+        />
+      </MapView>
+        </Content>
+      </Container>
 
         <ScrollView style={{ flex: 1 }}>
           <ListItem
@@ -571,25 +624,6 @@ class AddScreen extends React.Component {
 
           {this.renderAddButton()}
 
-      <MapView
-          style={{ height: SCREEN_WIDTH }}
-          scrollEnabled={false}
-          cacheEnabled={Platform.OS === 'android'}
-          region={{
-            latitude: this.state.latitude,
-            longitude: this.state.longitude,
-            latitudeDelta: 0.00922,
-            longitudeDelta: 0.00521
-          }}
-      >
-        <MapView.Marker
-          coordinate={{
-            latitude: this.state.latitude,
-            longitude: this.state.longitude
-          }}
-          title="ここに行ったよ！"
-        />
-      </MapView>
         </ScrollView>
       </View>
     );
